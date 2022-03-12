@@ -1,0 +1,251 @@
+/*Query1*/ /*who is the best Employee in Sales Support Agent?*/
+SELECT e.EmployeeId,
+       e.FirstName,
+       e.LastName,
+       count(c.CustomerId) AS Num_of_customer
+FROM Employee e
+JOIN Customer c ON e.EmployeeId=c.SupportRepId
+GROUP BY 1,
+         2,
+         3
+ORDER BY 3 DESC;
+
+/*Query 2*/ /*who are the artists with the biggest music production in terms of hours,the first 10 only?*/
+SELECT a.Name AS Artist_name,
+       sum(t.Milliseconds)/(60000*60) AS production_hours
+FROM Artist a
+JOIN Album b ON a.ArtistId=b.ArtistId
+JOIN Track t ON b.AlbumId=t.AlbumId
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 10;
+
+/*QUERY3*/ /*the artist can repeat his cooperation with a composer several times, choose the artists who did so more than 20 times?*/ /*note: we use fillter for the null values*/
+WITH t1 AS
+  (SELECT a.Name,
+          t.Composer,
+          count(t.TrackId) AS times
+   FROM Artist a
+   JOIN Album b ON a.ArtistId=b.ArtistId
+   JOIN Track t ON b.AlbumId=t.AlbumId
+   WHERE t.Composer IS NOT NULL
+   GROUP BY 1,
+            2),
+                                                                                                                                                                                        
+t2 AS
+  (SELECT t1.Name,
+          max(t1.times) AS maximum
+   FROM t1
+   GROUP BY 1)
+SELECT t1.Name AS Artist_name,
+       t1.Composer,
+       t1.times
+FROM t1
+JOIN t2 ON t1.Name=t2.Name
+AND t1.times =t2.maximum
+WHERE t1.times >20
+ORDER BY 3 DESC;
+
+/*another way: i try subquery WITHOUT (WITH)*/
+SELECT t3.Artist_name,
+       t3.Composer,
+       t3.times
+FROM
+  (SELECT a.Name AS Artist_name,
+          t.Composer,
+          count(t.TrackId) AS times
+   FROM Artist a
+   JOIN Album b ON a.ArtistId=b.ArtistId
+   JOIN Track t ON b.AlbumId=t.AlbumId
+   WHERE t.Composer IS NOT NULL
+   GROUP BY 1,
+            2)t3
+JOIN
+  (SELECT t1.Name,
+          max(t1.times) AS maximum
+   FROM
+     (SELECT a.Name,
+             t.Composer,
+             count(t.TrackId) AS times
+      FROM Artist a
+      JOIN Album b ON a.ArtistId=b.ArtistId
+      JOIN Track t ON b.AlbumId=t.AlbumId
+      WHERE t.Composer IS NOT NULL
+      GROUP BY 1,
+               2) t1
+   GROUP BY 1) t2 ON t2.Name =t3.Artist_name
+AND t3.times =t2.maximum
+WHERE t3.times >20
+ORDER BY 3 DESC;
+
+/*Query4*/ /*what is the average of Album songs for each Artist?*/ /*note:we round the result (average)*/
+ WITH t1 AS
+  (SELECT a.Name,
+          b.AlbumId,
+          count(t.TrackId) AS songs
+   FROM Artist a
+   JOIN Album b ON a.ArtistId=b.ArtistId
+   JOIN Track t ON b.AlbumId=t.AlbumId
+   GROUP BY 1,
+            2)
+SELECT t1.Name,
+       round(avg(t1.songs)) AS average
+FROM t1
+GROUP BY 1
+ORDER BY 2 DESC;
+
+/*another way :without with*/
+SELECT t1.Name,
+       round(avg(t1.songs)) AS average
+FROM
+  (SELECT a.Name,
+          b.AlbumId,
+          count(t.TrackId) AS songs
+   FROM Artist a
+   JOIN Album b ON a.ArtistId=b.ArtistId
+   JOIN Track t ON b.AlbumId=t.AlbumId
+   GROUP BY 1,
+            2) t1
+GROUP BY 1
+ORDER BY 2 DESC;
+
+/*QUERY5*/ /*what is the most various Albums(more than Genre)?*/ 
+WITH t1 AS
+  (SELECT b.Title,
+          g.Name
+   FROM Album b
+   JOIN Track t ON b.AlbumId=t.AlbumId
+   JOIN Genre g ON g.GenreId=t.GenreId
+   GROUP BY 1,
+            2)
+SELECT t1.Title,
+       count(t1.Name) AS variety
+FROM t1
+GROUP BY 1
+HAVING count(t1.Name)>1
+ORDER BY 2 DESC;
+
+/*note:without with*/
+SELECT t1.Title,
+       count(t1.Name) AS variety
+FROM
+  (SELECT b.Title,
+          g.Name
+   FROM Album b
+   JOIN Track t ON b.AlbumId=t.AlbumId
+   JOIN Genre g ON g.GenreId=t.GenreId
+   GROUP BY 1,
+            2) t1
+GROUP BY 1
+HAVING count(t1.Name)>1
+ORDER BY 2 DESC;
+
+/*QUERY6*/ /*for each genre, which artist is the king of sales*/
+ WITH t1 AS
+  (SELECT a.Name,
+          t.GenreId,
+          count(l.TrackId)AS times
+   FROM Artist a
+   JOIN Album b ON a.ArtistId=b.ArtistId
+   JOIN Track t ON b.AlbumId=t.AlbumId
+   JOIN InvoiceLine l ON t.TrackId=l.TrackId
+   GROUP BY 1,
+            2
+   ORDER BY 1),
+                                                                     
+ t2 AS
+  (SELECT t1.GenreId,
+          max(t1.times)AS maximum
+   FROM t1
+   GROUP BY 1),
+                                                                     
+ t3 AS
+  (SELECT t1.GenreId,
+          t1.Name,
+          t1.times
+   FROM t1
+   JOIN t2 ON t1.GenreId=t2.GenreId
+   AND t1.times =t2.maximum
+   GROUP BY 1)
+SELECT g.Name AS Genre_name,
+       t3.Name AS Artist_name,
+       t3.times
+FROM t3
+JOIN Genre g ON g.GenreId=t3.GenreId
+ORDER BY 1;
+
+/*QUERY7*/ /*what is the most popular MediaType for each Genre*/ 
+WITH t1 AS
+  (SELECT g.Name AS genre_name,
+          t.TrackId,
+          t.MediaTypeId
+   FROM Track t
+   JOIN Genre g ON g.GenreId=t.GenreId),
+                                                                     
+ t2 AS
+  (SELECT t1.genre_name,
+          m.Name AS MediaType_name,
+          count(t1.TrackId)AS total_number
+   FROM t1
+   JOIN MediaType m ON m.MediaTypeId=t1.MediaTypeId
+   GROUP BY 1,
+            2),
+                                                                     
+ t3 AS
+  (SELECT t2.genre_name,
+          max(t2.total_number) AS maximum
+   FROM t2
+   GROUP BY 1)
+SELECT t2.genre_name,
+       t2.MediaType_name,
+       t2.total_number
+FROM t2
+JOIN t3 ON t3.genre_name=t2.genre_name
+AND t2.total_number = t3.maximum
+GROUP BY 1
+ORDER BY 3 DESC;
+
+/*QUERY8*/ /*which city in each country has the biggest purchasing times*/ 
+WITH t1 AS
+  (SELECT c.Country,
+          c.City,
+          count(l.TrackId) AS purchasing
+   FROM Customer c
+   JOIN Invoice i ON c.CustomerId=i.CustomerId
+   JOIN InvoiceLine l ON i.InvoiceId=l.InvoiceId
+   GROUP BY 1,
+            2),
+                                                                                
+t2 AS
+  (SELECT t1.Country,
+          max(t1. purchasing) AS maximum
+   FROM t1
+   GROUP BY 1)
+SELECT t1.Country,
+       t1.City,
+       t1.purchasing
+FROM t1
+JOIN t2 ON t1.Country=t2.Country
+AND t1.purchasing =t2.maximum
+GROUP BY 1;
+
+/*another way*/ WITH t1 AS
+  (SELECT i.BillingCountry,
+          i.BillingCity,
+          count(l.TrackId) AS purchasing
+   FROM Invoice i
+   JOIN InvoiceLine l ON i.InvoiceId=l.InvoiceId
+   GROUP BY 1,
+            2),
+                     t2 AS
+  (SELECT t1.BillingCountry,
+          max(t1. purchasing) AS maximum
+   FROM t1
+   GROUP BY 1)
+SELECT t1.BillingCountry,
+       t1.BillingCity,
+       t1.purchasing
+FROM t1
+JOIN t2 ON t1.BillingCountry=t2.BillingCountry
+AND t1.purchasing =t2.maximum
+GROUP BY 1;
